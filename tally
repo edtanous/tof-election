@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import json
+import argparse
+import os
+
+import pyrankvote
+from rcv import FractionalSTV, PreferenceSchedule
+
+ballots = []
+
+parser = argparse.ArgumentParser(description="Log a vote for a TOF election")
+parser.add_argument(
+    "--election",
+    type=str,
+    default="2025H2",
+    help="The election to vote on.  (Example 2025H2)",
+)
+parser.add_argument(
+    "--verbose",
+    action="store_true",
+    help="Print verbose output",
+)
+args = parser.parse_args()
+
+with open(os.path.join(args.election, "candidates.json")) as c:
+    candidates_list = json.load(c)
+seats = candidates_list["seats"]
+
+with open(os.path.join(args.election, "rollcall.json")) as j:
+    rollcall = json.load(j)
+
+vote_dir = os.path.join(args.election, "votes")
+for file in os.listdir(vote_dir):
+    if not file.endswith(".json"):
+        continue
+    with open(os.path.join(vote_dir, file), "r") as f:
+        j = json.load(f)
+    if args.verbose:
+        print(f"{file} {j}")
+    votes = 1
+    if rollcall[os.path.splitext(file)[0]] == "highly-productive":
+        votes = 3
+        if args.verbose:
+            print(f"{file} is higly productive")
+    for vote in range(0, votes):
+        ballots.append(j)
+
+schedule = PreferenceSchedule.from_ballots(ballots)
+stv = FractionalSTV(schedule, seats=seats)
+election_result = stv.elect()
+
+print("")
+print(election_result)
